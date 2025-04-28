@@ -20,30 +20,34 @@ public class CircleRasterizer {
     private void drawStyledCircle(BufferedImage img, int x0, int y0, int radius, Color color, LineStyle style) {
         int x = radius;
         int y = 0;
-        int err = 0;
+        int decisionOver2 = 1 - x; // Rozhodovací proměnná v algoritmu
 
-        int stepCounter = 0;
-        int stepMod = style == LineStyle.SOLID ? 1 :
-                style == LineStyle.DOTTED ? 4 :
-                        style == LineStyle.DASHED ? 8 : 1;
+        int[] pattern;
+        switch (style) {
+            case SOLID -> pattern = new int[]{1};
+            case DOTTED -> pattern = new int[]{1, 0, 0, 0};
+            case DASHED -> pattern = new int[]{1, 1, 1, 1, 0, 0, 0, 0};
+            default -> pattern = new int[]{1};
+        }
+        int patternIndex = 0;
+        int patternLength = pattern.length;
 
-        while (x >= y) {
-            // Stylový krok - kresli jen některé pixely
-            if (style == LineStyle.SOLID || stepCounter % stepMod < (style == LineStyle.DOTTED ? 1 : 5)) {
+        while (y <= x) {
+            if (pattern[patternIndex % patternLength] == 1) {
                 plotCirclePoints(img, x0, y0, x, y, color);
             }
+            patternIndex++;
 
             y++;
-            if (err <= 0) {
-                err += 2 * y + 1;
+            if (decisionOver2 <= 0) {
+                decisionOver2 += 2 * y + 1;
             } else {
                 x--;
-                err -= 2 * x + 1;
+                decisionOver2 += 2 * (y - x) + 1;
             }
-
-            stepCounter++;
         }
     }
+
 
     private void plotCirclePoints(BufferedImage img, int cx, int cy, int x, int y, Color color) {
         int[][] points = {

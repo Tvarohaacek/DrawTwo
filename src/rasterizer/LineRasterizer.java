@@ -67,4 +67,29 @@ public class LineRasterizer {
             }
         }
     }
+
+    public Point snapTo45Degrees(Point start, Point current) {
+        double dx = current.x - start.x;
+        double dy = current.y - start.y;
+
+        double angle = Math.atan2(dy, dx); // Úhel v radiánech
+        double degree = Math.toDegrees(angle);
+
+        // Normalizace na [0, 360)
+        if (degree < 0) {
+            degree += 360;
+        }
+
+        // Najdeme nejbližší násobek 45
+        int snappedDegree = (int) (Math.round(degree / 45.0) * 45) % 360;
+
+        double rad = Math.toRadians(snappedDegree);
+        double length = Math.hypot(dx, dy);
+
+        int snappedX = (int) Math.round(start.x + Math.cos(rad) * length);
+        int snappedY = (int) Math.round(start.y + Math.sin(rad) * length);
+
+        return new Point(snappedX, snappedY);
+    }
+
 }

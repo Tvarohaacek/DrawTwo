@@ -16,6 +16,7 @@ public class DrawingPanel extends JPanel {
     private BufferedImage temp;
     // Přidáme další buffery pro práci s výběrem
     private BufferedImage backupCanvas; // Pro ukládání stavu před výběrem
+    private BufferedImage originalCanvas; // Pro ukládání stavu před manipulací s čárou
     private Point start;
     private Point currentMouse;
     private LineRasterizer lineRasterizer;
@@ -36,11 +37,20 @@ public class DrawingPanel extends JPanel {
     private int selectionHandleIndex = -1;
     private Point dragOffset;
 
+    // Proměnné pro manipulaci s čárou
+    private Point currentLineStart, currentLineEnd;
+    private boolean isDraggingLinePoint = false;
+    private int selectedLinePointIndex = -1; // -1: none, 0: start point, 1: end point
+    private static final int LINE_HANDLE_RADIUS = 5; // Velikost úchytu koncového bodu
+    private boolean isShiftDown = false; // Sleduje stav Shift klávesy
+    private boolean lineBeingManipulated = false; // Identifikuje, zda právě manipulujeme s čárou
+
     public DrawingPanel(int width, int height) {
         this.setPreferredSize(new Dimension(width, height));
         canvas = new BufferedImage(width, height, BufferedImage.TYPE_INT_RGB);
         temp = new BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB);
         backupCanvas = new BufferedImage(width, height, BufferedImage.TYPE_INT_RGB);
+        originalCanvas = new BufferedImage(width, height, BufferedImage.TYPE_INT_RGB);
 
         lineRasterizer = new LineRasterizer();
         rectangleRasterizer = new RectangleRasterizer(lineRasterizer);
@@ -55,8 +65,34 @@ public class DrawingPanel extends JPanel {
             @Override
             public void mousePressed(MouseEvent e) {
                 Point p = new Point(e.getX(), e.getY());
+                isShiftDown = (e.getModifiersEx() & MouseEvent.SHIFT_DOWN_MASK) != 0;
+
+                // Kontrola, zda jsme klikli na koncový bod aktuální čáry
+                if (currentLineStart != null && currentLineEnd != null && currentTool == ToolType.LINE) {
+                    if (isNearPoint(p, currentLineStart, LINE_HANDLE_RADIUS)) {
+                        // Uložíme stav plátna před manipulací
+                        saveCanvasState();
+                        selectedLinePointIndex = 0;
+                        isDraggingLinePoint = true;
+                        lineBeingManipulated = true;
+                        currentMouse = p;
+                        return;
+                    }
+                    if (isNearPoint(p, currentLineEnd, LINE_HANDLE_RADIUS)) {
+                        // Uložíme stav plátna před manipulací
+                        saveCanvasState();
+                        selectedLinePointIndex = 1;
+                        isDraggingLinePoint = true;
+                        lineBeingManipulated = true;
+                        currentMouse = p;
+                        return;
+                    }
+                }
+
+                // Pokud jsme neklikli na koncový bod, nastavíme start pro novou čáru
                 currentMouse = p;
                 start = p;
+                lineBeingManipulated = false;
 
                 if (currentTool == ToolType.SELECTION) {
                     Rectangle rect = selectionStart != null && selectionEnd != null
@@ -79,6 +115,10 @@ public class DrawingPanel extends JPanel {
                     selectionStart = p;
                     selectionEnd = p;
                     selectedImage = null;
+                } else if (currentTool != ToolType.LINE) {
+                    // Pokud přepneme na jiný nástroj, zrušíme možnost manipulace s čárou
+                    currentLineStart = null;
+                    currentLineEnd = null;
                 }
 
                 if (currentTool == ToolType.POLYGON) {
@@ -96,7 +136,38 @@ public class DrawingPanel extends JPanel {
             @Override
             public void mouseReleased(MouseEvent e) {
                 Point end = new Point(e.getX(), e.getY());
-                boolean shift = (e.getModifiersEx() & MouseEvent.SHIFT_DOWN_MASK) != 0;
+                isShiftDown = (e.getModifiersEx() & MouseEvent.SHIFT_DOWN_MASK) != 0;
+
+                if (isDraggingLinePoint && currentLineStart != null && currentLineEnd != null) {
+                    // Aktualizace pouze bodu, který jsme táhli
+                    if (selectedLinePointIndex == 0) {
+                        if (isShiftDown) {
+                            currentLineStart = lineRasterizer.snapTo45Degrees(currentLineEnd, end);
+                        } else {
+                            currentLineStart = end;
+                        }
+                    } else {
+                        if (isShiftDown) {
+                            currentLineEnd = lineRasterizer.snapTo45Degrees(currentLineStart, end);
+                        } else {
+                            currentLineEnd = end;
+                        }
+                    }
+
+                    // Obnovíme plátno bez aktuální čáry
+                    restoreCanvasState();
+
+                    // Vykreslíme aktualizovanou čáru
+                    lineRasterizer.drawLine(canvas, currentLineStart, currentLineEnd,
+                            currentColor, currentThickness, currentStyle);
+
+                    isDraggingLinePoint = false;
+                    selectedLinePointIndex = -1;
+                    lineBeingManipulated = false;
+                    clearTemp();
+                    repaint();
+                    return;
+                }
 
                 if (isDraggingSelection) {
                     // Když ukončíme tažení výběru, provedeme skutečné přesunutí na plátně
@@ -127,10 +198,22 @@ public class DrawingPanel extends JPanel {
                 }
 
                 switch (currentTool) {
-                    case LINE -> lineRasterizer.drawLine(canvas, start, end, currentColor, currentThickness, currentStyle);
-                    case RECTANGLE -> rectangleRasterizer.drawRectangle(canvas, start, end, currentColor, currentThickness, currentStyle, shift);
-                    case CIRCLE -> circleRasterizer.drawCircle(canvas, start, end, currentColor, currentThickness, currentStyle);
-                    case FILL -> fillRasterizer.floodFill(canvas, end, currentColor);
+                    case LINE:
+                        if (!lineBeingManipulated && start != null) {
+                            Point endPoint = isShiftDown ? lineRasterizer.snapTo45Degrees(start, end) : end;
+                            lineRasterizer.drawLine(canvas, start, endPoint, currentColor, currentThickness, currentStyle);
+                            saveCurrentLine(start, endPoint);  // Uložíme čáru pro budoucí manipulaci
+                        }
+                        break;
+                    case RECTANGLE:
+                        rectangleRasterizer.drawRectangle(canvas, start, end, currentColor, currentThickness, currentStyle, isShiftDown);
+                        break;
+                    case CIRCLE:
+                        circleRasterizer.drawCircle(canvas, start, end, currentColor, currentThickness, currentStyle);
+                        break;
+                    case FILL:
+                        fillRasterizer.floodFill(canvas, end, currentColor);
+                        break;
                 }
 
                 clearTemp();
@@ -143,9 +226,41 @@ public class DrawingPanel extends JPanel {
             public void mouseDragged(MouseEvent e) {
                 Point dragged = new Point(e.getX(), e.getY());
                 currentMouse = dragged;
-                boolean shift = (e.getModifiersEx() & MouseEvent.SHIFT_DOWN_MASK) != 0;
+                isShiftDown = (e.getModifiersEx() & MouseEvent.SHIFT_DOWN_MASK) != 0;
 
                 clearTemp();
+
+                if (isDraggingLinePoint && currentLineStart != null && currentLineEnd != null) {
+                    // Kopie bodů pro náhled
+                    Point previewStart = new Point(currentLineStart.x, currentLineStart.y);
+                    Point previewEnd = new Point(currentLineEnd.x, currentLineEnd.y);
+
+                    // Aktualizace pouze bodu, který táhneme
+                    if (selectedLinePointIndex == 0) {
+                        if (isShiftDown) {
+                            previewStart = lineRasterizer.snapTo45Degrees(currentLineEnd, dragged);
+                        } else {
+                            previewStart = dragged;
+                        }
+                    } else {
+                        if (isShiftDown) {
+                            previewEnd = lineRasterizer.snapTo45Degrees(currentLineStart, dragged);
+                        } else {
+                            previewEnd = dragged;
+                        }
+                    }
+
+                    // Vykreslení náhledu - nejprve obnovíme původní plátno
+                    Graphics g = temp.getGraphics();
+                    g.drawImage(originalCanvas, 0, 0, null);
+                    g.dispose();
+
+                    // Poté vykreslíme aktualizovanou čáru
+                    lineRasterizer.drawLine(temp, previewStart, previewEnd,
+                            currentColor, currentThickness, currentStyle);
+                    repaint();
+                    return;
+                }
 
                 if (isDraggingSelection && dragOffset != null) {
                     Point newTopLeft = new Point(dragged.x - dragOffset.x, dragged.y - dragOffset.y);
@@ -170,9 +285,18 @@ public class DrawingPanel extends JPanel {
                 }
 
                 switch (currentTool) {
-                    case LINE -> lineRasterizer.drawLine(temp, start, dragged, currentColor, currentThickness, currentStyle);
-                    case RECTANGLE -> rectangleRasterizer.drawRectangle(temp, start, dragged, currentColor, currentThickness, currentStyle, shift);
-                    case CIRCLE -> circleRasterizer.drawCircle(temp, start, dragged, currentColor, currentThickness, currentStyle);
+                    case LINE:
+                        if (!lineBeingManipulated && start != null) {
+                            Point endPoint = isShiftDown ? lineRasterizer.snapTo45Degrees(start, dragged) : dragged;
+                            lineRasterizer.drawLine(temp, start, endPoint, currentColor, currentThickness, currentStyle);
+                        }
+                        break;
+                    case RECTANGLE:
+                        rectangleRasterizer.drawRectangle(temp, start, dragged, currentColor, currentThickness, currentStyle, isShiftDown);
+                        break;
+                    case CIRCLE:
+                        circleRasterizer.drawCircle(temp, start, dragged, currentColor, currentThickness, currentStyle);
+                        break;
                 }
 
                 repaint();
@@ -187,6 +311,33 @@ public class DrawingPanel extends JPanel {
 
         this.addMouseListener(mouseHandler);
         this.addMouseMotionListener(mouseHandler);
+    }
+
+    // Metoda pro uložení aktuálního stavu plátna před manipulací s čárou
+    private void saveCanvasState() {
+        Graphics g = originalCanvas.getGraphics();
+        g.drawImage(canvas, 0, 0, null);
+        g.dispose();
+    }
+
+    // Metoda pro obnovení stavu plátna
+    private void restoreCanvasState() {
+        Graphics g = canvas.getGraphics();
+        g.drawImage(originalCanvas, 0, 0, null);
+        g.dispose();
+    }
+
+    // Metoda pro kontrolu, zda je bod blízko jinému bodu
+    private boolean isNearPoint(Point p1, Point p2, int radius) {
+        int dx = p1.x - p2.x;
+        int dy = p1.y - p2.y;
+        return (dx * dx + dy * dy) <= radius * radius;
+    }
+
+    // Metoda pro uložení aktuální čáry pro manipulaci
+    private void saveCurrentLine(Point start, Point end) {
+        currentLineStart = start;
+        currentLineEnd = end;
     }
 
     // Nová metoda pro zálohování aktuálního stavu plátna
@@ -285,6 +436,12 @@ public class DrawingPanel extends JPanel {
         g.setColor(Color.BLACK);
         g.fillRect(0, 0, backupCanvas.getWidth(), backupCanvas.getHeight());
         g.dispose();
+
+        // A také originalCanvas
+        g = originalCanvas.getGraphics();
+        g.setColor(Color.BLACK);
+        g.fillRect(0, 0, originalCanvas.getWidth(), originalCanvas.getHeight());
+        g.dispose();
     }
 
     private void clearTemp() {
@@ -319,6 +476,14 @@ public class DrawingPanel extends JPanel {
             selectionEnd = null;
             isDraggingSelection = false;
         }
+
+        // Pokud přepneme na jiný nástroj než čára, zrušíme možnost manipulace s čárou
+        if (tool != ToolType.LINE) {
+            currentLineStart = null;
+            currentLineEnd = null;
+            isDraggingLinePoint = false;
+            lineBeingManipulated = false;
+        }
     }
 
     @Override
@@ -328,6 +493,7 @@ public class DrawingPanel extends JPanel {
         g.drawImage(temp, 0, 0, null);
 
         BufferedImage preview = new BufferedImage(canvas.getWidth(), canvas.getHeight(), BufferedImage.TYPE_INT_ARGB);
+        Graphics2D g2d = preview.createGraphics();
 
         if (currentTool == ToolType.SELECTION && selectionStart != null && selectionEnd != null) {
             Rectangle rect = selectionRasterizer.getSelectionRect(selectionStart, selectionEnd);
@@ -353,14 +519,36 @@ public class DrawingPanel extends JPanel {
             }
         }
 
-        if (start != null && currentMouse != null && currentTool != ToolType.POLYGON && currentTool != ToolType.SELECTION) {
+        // Vykreslení koncových bodů čáry, pokud máme nějakou vybranou
+        if (currentLineStart != null && currentLineEnd != null && currentTool == ToolType.LINE) {
+            g2d.setColor(Color.RED);
+            g2d.fillOval(currentLineStart.x - LINE_HANDLE_RADIUS,
+                    currentLineStart.y - LINE_HANDLE_RADIUS,
+                    LINE_HANDLE_RADIUS * 2, LINE_HANDLE_RADIUS * 2);
+            g2d.fillOval(currentLineEnd.x - LINE_HANDLE_RADIUS,
+                    currentLineEnd.y - LINE_HANDLE_RADIUS,
+                    LINE_HANDLE_RADIUS * 2, LINE_HANDLE_RADIUS * 2);
+        }
+
+        // Náhled při kreslení objektů - pouze pokud nejsme v režimu manipulace s čárou
+        if (start != null && currentMouse != null && !lineBeingManipulated) {
+            g2d.setColor(Color.GRAY);
             switch (currentTool) {
-                case LINE -> lineRasterizer.drawLine(preview, start, currentMouse, Color.GRAY, currentThickness, currentStyle);
-                case RECTANGLE -> rectangleRasterizer.drawRectangle(preview, start, currentMouse, Color.GRAY, currentThickness, currentStyle, false);
-                case CIRCLE -> circleRasterizer.drawCircle(preview, start, currentMouse, Color.GRAY, currentThickness, currentStyle);
+                case LINE:
+                    Point endPoint = isShiftDown ?
+                            lineRasterizer.snapTo45Degrees(start, currentMouse) : currentMouse;
+                    lineRasterizer.drawLine(preview, start, endPoint, Color.GRAY, currentThickness, currentStyle);
+                    break;
+                case RECTANGLE:
+                    rectangleRasterizer.drawRectangle(preview, start, currentMouse, Color.GRAY, currentThickness, currentStyle, isShiftDown);
+                    break;
+                case CIRCLE:
+                    circleRasterizer.drawCircle(preview, start, currentMouse, Color.GRAY, currentThickness, currentStyle);
+                    break;
             }
         }
 
+        g2d.dispose();
         g.drawImage(preview, 0, 0, null);
     }
 }
