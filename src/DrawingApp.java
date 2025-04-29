@@ -9,7 +9,7 @@ import ui.ToolPanel;
 public class DrawingApp {
     public static void main(String[] args) {
         SwingUtilities.invokeLater(() -> {
-            JFrame frame = new JFrame("Jednoduchý kreslící program");
+            JFrame frame = new JFrame("DrawTwo");
             frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
             frame.setLayout(new BorderLayout());
 
