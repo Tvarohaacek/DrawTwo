@@ -32,6 +32,13 @@ public class DrawingPanel extends JPanel {
     private LineStyle currentStyle = LineStyle.SOLID;
     private ToolType currentTool = ToolType.LINE;
     private Point lastMousePoint = null;
+    private ToolType lastShapeType = null;
+    private Point lastShapeStart = null;
+    private Point lastShapeEnd = null;
+    private int selectedHandle = -1;
+    private boolean isEditingLastShape = false;
+
+
 
     private Point selectionStart, selectionEnd;
     private BufferedImage selectedImage;
@@ -64,6 +71,31 @@ public class DrawingPanel extends JPanel {
                 if (currentTool == ToolType.BRUSH || currentTool == ToolType.ERASER) {
                     lastMousePoint = p;
                 }
+
+                if (lastShapeType != null) {
+                    Point handle1 = lastShapeStart;
+                    Point handle2 = lastShapeEnd;
+                    Point center = new Point((handle1.x + handle2.x) / 2, (handle1.y + handle2.y) / 2);
+
+                    if (isOnHandle(p, handle1)) {
+                        selectedHandle = 0;
+                        isEditingLastShape = true;
+                        clearTemp();
+                        return;
+                    } else if (isOnHandle(p, handle2)) {
+                        selectedHandle = 1;
+                        isEditingLastShape = true;
+                        clearTemp();
+                        return;
+                    } else if (isOnHandle(p, center)) {
+                        selectedHandle = 2;
+                        dragOffset = new Point(p.x - center.x, p.y - center.y);
+                        isEditingLastShape = true;
+                        clearTemp();
+                        return;
+                    }
+                }
+
 
                 switch (currentTool) {
                     case POLYGON -> {if (!polygonRasterizer.isEmpty() && polygonRasterizer.isCloseToFirst(p, 10)) {
@@ -121,6 +153,16 @@ public class DrawingPanel extends JPanel {
                     return;
                 }
 
+                if (isEditingLastShape) {
+                    clearTemp(); // smažeme temp plátno
+                    drawLastShapeToCanvas(); // nakreslíme nový tvar napevno
+                    isEditingLastShape = false;
+                    selectedHandle = -1;
+                    repaint();
+                    return;
+                }
+
+
                 if (selectionHandleIndex != -1) {
 
                     Rectangle rect = selectionRasterizer.resizeSelection(selectionStart, selectionEnd, selectionHandleIndex, end);
@@ -142,11 +184,51 @@ public class DrawingPanel extends JPanel {
                 }
 
                 switch (currentTool) {
-                    case LINE -> lineRasterizer.drawLine(canvas, start, end, currentColor, currentThickness, currentStyle);
-                    case RECTANGLE -> rectangleRasterizer.drawRectangle(canvas, start, end, currentColor, currentThickness, currentStyle, shift);
-                    case CIRCLE -> circleRasterizer.drawCircle(canvas, start, end, currentColor, currentThickness, currentStyle);
+                    case LINE -> {
+                        lineRasterizer.drawLine(canvas, start, end, currentColor, currentThickness, currentStyle);
+                            lastShapeType = currentTool;
+                            lastShapeStart = start;
+                            lastShapeEnd = end;
+                        if (isEditingLastShape) {
+                            clearTemp();
+                            drawLastShapeToTemp();
+                            repaint();
+                            return;
+                        }
+
+                    }
+                    case RECTANGLE -> {
+                        rectangleRasterizer.drawRectangle(canvas, start, end, currentColor, currentThickness, currentStyle, shift);
+                        lastShapeType = currentTool;
+                        lastShapeStart = start;
+                        lastShapeEnd = end;
+                        if (isEditingLastShape) {
+                            clearTemp();
+                            drawLastShapeToTemp();  // vykreslí aktuální upravovaný tvar
+                            repaint();
+                            return;
+                        }
+
+                    }
+                    case CIRCLE -> {
+                        circleRasterizer.drawCircle(canvas, start, end, currentColor, currentThickness, currentStyle);
+                        lastShapeType = currentTool;
+                        lastShapeStart = start;
+                        lastShapeEnd = end;
+                        if (isEditingLastShape) {
+                            clearTemp();
+                            drawLastShapeToTemp();  // vykreslí aktuální upravovaný tvar
+                            repaint();
+                            return;
+                        }
+
+                    }
                     case FILL -> fillRasterizer.floodFill(canvas, end, currentColor);
+
+
                 }
+
+
 
                 clearTemp();
                 start = null;
@@ -161,6 +243,26 @@ public class DrawingPanel extends JPanel {
                 boolean shift = (e.getModifiersEx() & MouseEvent.SHIFT_DOWN_MASK) != 0;
 
                 clearTemp();
+
+                if (selectedHandle != -1 && lastShapeStart != null && lastShapeEnd != null) {
+                    switch (selectedHandle) {
+                        case 0 -> lastShapeStart = dragged;
+                        case 1 -> lastShapeEnd = dragged;
+                        case 2 -> {
+                            int dx = dragged.x - dragOffset.x - (lastShapeStart.x + lastShapeEnd.x) / 2;
+                            int dy = dragged.y - dragOffset.y - (lastShapeStart.y + lastShapeEnd.y) / 2;
+                            lastShapeStart = new Point(lastShapeStart.x + dx, lastShapeStart.y + dy);
+                            lastShapeEnd = new Point(lastShapeEnd.x + dx, lastShapeEnd.y + dy);
+                        }
+                    }
+                    clearTemp();
+                    drawLastShapeToTemp();
+                    repaint();
+                    currentMouse = null;
+                    start = null;
+                    return;
+
+                }
 
                 if (isDraggingSelection && dragOffset != null) {
                     Point newTopLeft = new Point(dragged.x - dragOffset.x, dragged.y - dragOffset.y);
@@ -235,6 +337,28 @@ public class DrawingPanel extends JPanel {
         }
     }
 
+    private void drawLastShapeToTemp() {
+        if (lastShapeType == null || lastShapeStart == null || lastShapeEnd == null) return;
+
+        switch (lastShapeType) {
+            case LINE -> lineRasterizer.drawLine(temp, lastShapeStart, lastShapeEnd, currentColor, currentThickness, currentStyle);
+            case RECTANGLE -> rectangleRasterizer.drawRectangle(temp, lastShapeStart, lastShapeEnd, currentColor, currentThickness, currentStyle, false);
+            case CIRCLE -> circleRasterizer.drawCircle(temp, lastShapeStart, lastShapeEnd, currentColor, currentThickness, currentStyle);
+        }
+    }
+
+    private void drawLastShapeToCanvas() {
+        if (lastShapeType == null || lastShapeStart == null || lastShapeEnd == null) return;
+
+        switch (lastShapeType) {
+            case LINE -> lineRasterizer.drawLine(canvas, lastShapeStart, lastShapeEnd, currentColor, currentThickness, currentStyle);
+            case RECTANGLE -> rectangleRasterizer.drawRectangle(canvas, lastShapeStart, lastShapeEnd, currentColor, currentThickness, currentStyle, false);
+            case CIRCLE -> circleRasterizer.drawCircle(canvas, lastShapeStart, lastShapeEnd, currentColor, currentThickness, currentStyle);
+        }
+    }
+
+
+
     private void drawInterpolatedEraserLine(Point from, Point to) {
         int dx = to.x - from.x;
         int dy = to.y - from.y;
@@ -304,6 +428,16 @@ public class DrawingPanel extends JPanel {
 
         return new Rectangle(x, y, width, height);
     }
+
+    private Rectangle getHandleRect(Point p) {
+        int size = 6;
+        return new Rectangle(p.x - size / 2, p.y - size / 2, size, size);
+    }
+
+    private boolean isOnHandle(Point mouse, Point handle) {
+        return getHandleRect(handle).contains(new java.awt.Point(mouse.x, mouse.y));
+    }
+
 
 
     private void applySelection() {
@@ -388,6 +522,22 @@ public class DrawingPanel extends JPanel {
         }
     }
 
+    private void drawHandle(BufferedImage img, Point center, Color color) {
+        int size = 6;
+        int half = size / 2;
+        int rgb = color.getRGB();
+
+        for (int y = -half; y <= half; y++) {
+            for (int x = -half; x <= half; x++) {
+                int px = center.x + x;
+                int py = center.y + y;
+                if (px >= 0 && px < img.getWidth() && py >= 0 && py < img.getHeight()) {
+                    img.setRGB(px, py, rgb);
+                }
+            }
+        }
+    }
+
     @Override
     protected void paintComponent(Graphics g) {
         super.paintComponent(g);
@@ -395,6 +545,27 @@ public class DrawingPanel extends JPanel {
         g.drawImage(temp, 0, 0, null);
 
         BufferedImage preview = new BufferedImage(canvas.getWidth(), canvas.getHeight(), BufferedImage.TYPE_INT_ARGB);
+
+        if(lastShapeType !=null&&lastShapeStart !=null&&lastShapeEnd !=null)
+
+        {
+            BufferedImage overlay = new BufferedImage(canvas.getWidth(), canvas.getHeight(), BufferedImage.TYPE_INT_ARGB);
+
+            switch (lastShapeType) {
+                case LINE -> lineRasterizer.drawLine(overlay, lastShapeStart, lastShapeEnd, Color.RED, 1, LineStyle.DASHED);
+                case RECTANGLE ->
+                        rectangleRasterizer.drawRectangle(overlay, lastShapeStart, lastShapeEnd, Color.RED, 1, LineStyle.DASHED, false);
+                case CIRCLE ->
+                        circleRasterizer.drawCircle(overlay, lastShapeStart, lastShapeEnd, Color.RED, 1, LineStyle.DASHED);
+            }
+
+            drawHandle(overlay, lastShapeStart, Color.YELLOW);
+            drawHandle(overlay, lastShapeEnd, Color.YELLOW);
+            drawHandle(overlay, new Point((lastShapeStart.x + lastShapeEnd.x) / 2, (lastShapeStart.y + lastShapeEnd.y) / 2), Color.YELLOW);
+
+            g.drawImage(overlay, 0, 0, null);
+        }
+
 
         if (currentTool == ToolType.SELECTION && selectionStart != null && selectionEnd != null) {
             Rectangle rect = selectionRasterizer.getSelectionRect(selectionStart, selectionEnd);
@@ -420,7 +591,7 @@ public class DrawingPanel extends JPanel {
             }
         }
 
-        if (start != null && currentMouse != null && currentTool != ToolType.POLYGON && currentTool != ToolType.SELECTION) {
+        if (start != null && currentMouse != null && currentTool != ToolType.POLYGON && currentTool != ToolType.SELECTION && selectedHandle == -1) {
             switch (currentTool) {
                 case LINE -> lineRasterizer.drawLine(preview, start, currentMouse, Color.GRAY, currentThickness, currentStyle);
                 case RECTANGLE -> rectangleRasterizer.drawRectangle(preview, start, currentMouse, Color.GRAY, currentThickness, currentStyle, false);

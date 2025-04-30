@@ -100,7 +100,6 @@ public class SelectionRasterizer {
 
 
 
-
     public void drawHandles(BufferedImage canvas, Rectangle rect) {
         final int HANDLE_RADIUS = 10;
         Graphics2D g = canvas.createGraphics();
