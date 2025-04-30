@@ -10,7 +10,7 @@ public class Point {
         this.y = y;
     }
 
-    // Metoda pro převod na AWT Point
+
     public java.awt.Point toAWTPoint() {
         return new java.awt.Point(this.x, this.y);
     }

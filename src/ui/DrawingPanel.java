@@ -14,21 +14,24 @@ import java.util.List;
 public class DrawingPanel extends JPanel {
     private BufferedImage canvas;
     private BufferedImage temp;
-    // Přidáme další buffery pro práci s výběrem
-    private BufferedImage backupCanvas; // Pro ukládání stavu před výběrem
+    private BufferedImage backupCanvas;
     private Point start;
     private Point currentMouse;
-    private LineRasterizer lineRasterizer;
-    private RectangleRasterizer rectangleRasterizer;
-    private CircleRasterizer circleRasterizer;
-    private PolygonRasterizer polygonRasterizer;
-    private FillRasterizer fillRasterizer;
-    private SelectionRasterizer selectionRasterizer;
+    private final LineRasterizer lineRasterizer;
+    private final RectangleRasterizer rectangleRasterizer;
+    private final CircleRasterizer circleRasterizer;
+    private final PolygonRasterizer polygonRasterizer;
+    private final FillRasterizer fillRasterizer;
+    private final SelectionRasterizer selectionRasterizer;
+    private final BrushRasterizer brushRasterizer = new BrushRasterizer();
+    private final EraserRasterizer eraserRasterizer = new EraserRasterizer();
+
 
     private Color currentColor = Color.WHITE;
     private int currentThickness = 1;
     private LineStyle currentStyle = LineStyle.SOLID;
     private ToolType currentTool = ToolType.LINE;
+    private Point lastMousePoint = null;
 
     private Point selectionStart, selectionEnd;
     private BufferedImage selectedImage;
@@ -58,38 +61,46 @@ public class DrawingPanel extends JPanel {
                 currentMouse = p;
                 start = p;
 
-                if (currentTool == ToolType.SELECTION) {
-                    Rectangle rect = selectionStart != null && selectionEnd != null
-                            ? selectionRasterizer.getSelectionRect(selectionStart, selectionEnd)
-                            : null;
-
-                    if (rect != null) {
-                        selectionHandleIndex = selectionRasterizer.getHandleIndex(p, rect);
-                        if (selectionHandleIndex != -1) return;
-
-                        if (rect.contains(new java.awt.Point(p.x, p.y))) {
-                            isDraggingSelection = true;
-                            dragOffset = new Point(p.x - rect.x, p.y - rect.y);
-                            return;
-                        }
-                    }
-
-                    // Pokud začínáme nový výběr, zrušíme starý a uložíme kopii plátna
-                    backupCurrentCanvas();
-                    selectionStart = p;
-                    selectionEnd = p;
-                    selectedImage = null;
+                if (currentTool == ToolType.BRUSH || currentTool == ToolType.ERASER) {
+                    lastMousePoint = p;
                 }
 
-                if (currentTool == ToolType.POLYGON) {
-                    if (!polygonRasterizer.isEmpty() && polygonRasterizer.isCloseToFirst(p, 10)) {
+                switch (currentTool) {
+                    case POLYGON -> {if (!polygonRasterizer.isEmpty() && polygonRasterizer.isCloseToFirst(p, 10)) {
                         polygonRasterizer.drawPolygon(canvas, currentColor, currentThickness, currentStyle, true);
                         polygonRasterizer.clear();
                     } else {
                         polygonRasterizer.addPoint(p);
+                    }}
+                    case SELECTION ->
+                    {
+                        Rectangle rect = selectionStart != null && selectionEnd != null
+                                    ? selectionRasterizer.getSelectionRect(selectionStart, selectionEnd) : null;
+                            if (rect != null) {
+                                selectionHandleIndex = selectionRasterizer.getHandleIndex(p, rect);
+                                if (selectionHandleIndex != -1) return;
+
+                                if (rect.contains(new java.awt.Point(p.x, p.y))) {
+                                    isDraggingSelection = true;
+                                    dragOffset = new Point(p.x - rect.x, p.y - rect.y);
+                                    return;
+                                }
+                            }
+
+                            backupCurrentCanvas();
+                            selectionStart = p;
+                            selectionEnd = p;
+                            selectedImage = null;
+                    }
+                    case BRUSH -> {
+                        brushRasterizer.drawPoint(canvas, start, currentThickness, currentColor);
+                        repaint();
+                    }
+                    case ERASER -> {
+                        eraserRasterizer.erasePoint(canvas, start, currentThickness);
+                        repaint();
                     }
                 }
-
                 repaint();
             }
 
@@ -98,8 +109,12 @@ public class DrawingPanel extends JPanel {
                 Point end = new Point(e.getX(), e.getY());
                 boolean shift = (e.getModifiersEx() & MouseEvent.SHIFT_DOWN_MASK) != 0;
 
+                if (currentTool == ToolType.BRUSH || currentTool == ToolType.ERASER) {
+                    lastMousePoint = null;
+                }
+
                 if (isDraggingSelection) {
-                    // Když ukončíme tažení výběru, provedeme skutečné přesunutí na plátně
+
                     applySelection();
                     isDraggingSelection = false;
                     repaint();
@@ -107,13 +122,13 @@ public class DrawingPanel extends JPanel {
                 }
 
                 if (selectionHandleIndex != -1) {
-                    // Když ukončíme změnu velikosti, aplikujeme změny na plátno
+
                     Rectangle rect = selectionRasterizer.resizeSelection(selectionStart, selectionEnd, selectionHandleIndex, end);
                     selectionStart = new Point(rect.x, rect.y);
                     selectionEnd = new Point(rect.x + rect.width, rect.y + rect.height);
                     selectionHandleIndex = -1;
 
-                    // Znovu získáme správný obrázek po změně velikosti
+
                     updateSelectedImage();
                     repaint();
                     return;
@@ -163,18 +178,37 @@ public class DrawingPanel extends JPanel {
                     return;
                 }
 
-                if (currentTool == ToolType.SELECTION) {
-                    selectionEnd = dragged;
-                    repaint();
-                    return;
-                }
 
                 switch (currentTool) {
                     case LINE -> lineRasterizer.drawLine(temp, start, dragged, currentColor, currentThickness, currentStyle);
                     case RECTANGLE -> rectangleRasterizer.drawRectangle(temp, start, dragged, currentColor, currentThickness, currentStyle, shift);
                     case CIRCLE -> circleRasterizer.drawCircle(temp, start, dragged, currentColor, currentThickness, currentStyle);
-                }
+                    case SELECTION -> {
+                        selectionEnd = dragged;
+                        repaint();
+                        return;
+                    }
+                    case BRUSH -> {
 
+                        if (lastMousePoint != null) {
+                            drawInterpolatedBrushLine(lastMousePoint, dragged);
+                        } else {
+                            brushRasterizer.drawPoint(canvas, dragged, currentThickness, currentColor);
+                        }
+                        lastMousePoint = dragged;
+                        start = dragged;
+                    }
+                    case ERASER -> {
+
+                        if (lastMousePoint != null) {
+                            drawInterpolatedEraserLine(lastMousePoint, dragged);
+                        } else {
+                            eraserRasterizer.erasePoint(canvas, dragged, currentThickness);
+                        }
+                        lastMousePoint = dragged;
+                        start = dragged;
+                    }
+                }
                 repaint();
             }
 
@@ -189,28 +223,52 @@ public class DrawingPanel extends JPanel {
         this.addMouseMotionListener(mouseHandler);
     }
 
-    // Nová metoda pro zálohování aktuálního stavu plátna
+    private void drawInterpolatedBrushLine(Point from, Point to) {
+        int dx = to.x - from.x;
+        int dy = to.y - from.y;
+        int steps = Math.max(Math.abs(dx), Math.abs(dy));
+
+        for (int i = 0; i <= steps; i++) {
+            int x = from.x + i * dx / steps;
+            int y = from.y + i * dy / steps;
+            brushRasterizer.drawPoint(canvas, new Point(x, y), currentThickness, currentColor);
+        }
+    }
+
+    private void drawInterpolatedEraserLine(Point from, Point to) {
+        int dx = to.x - from.x;
+        int dy = to.y - from.y;
+        int steps = Math.max(Math.abs(dx), Math.abs(dy));
+
+        for (int i = 0; i <= steps; i++) {
+            int x = from.x + i * dx / steps;
+            int y = from.y + i * dy / steps;
+            eraserRasterizer.erasePoint(canvas, new Point(x, y), currentThickness);
+        }
+    }
+
+
     private void backupCurrentCanvas() {
-        // Kopírujeme celý canvas pro pozdější obnovení
+
         Graphics g = backupCanvas.getGraphics();
         g.drawImage(canvas, 0, 0, null);
         g.dispose();
     }
 
-    // Nová metoda pro aktualizaci vybraného obrázku
+
     private void updateSelectedImage() {
         if (selectionStart == null || selectionEnd == null) return;
 
-        // Získáme správný obdélník výběru
+
         Rectangle rect = getNormalizedSelectionRect();
 
-        // Kontrola platnosti výběru
+
         if (rect.width <= 0 || rect.height <= 0) {
             selectedImage = null;
             return;
         }
 
-        // Kontrola hranic plátna
+
         rect.x = Math.max(0, rect.x);
         rect.y = Math.max(0, rect.y);
         rect.width = Math.min(canvas.getWidth() - rect.x, rect.width);
@@ -221,10 +279,10 @@ public class DrawingPanel extends JPanel {
             return;
         }
 
-        // Vytvoříme nový obrázek pro výběr
+
         selectedImage = new BufferedImage(rect.width, rect.height, BufferedImage.TYPE_INT_ARGB);
 
-        // Kopírujeme pixely z plátna do výběru
+
         for (int y = 0; y < rect.height; y++) {
             for (int x = 0; x < rect.width; x++) {
                 int rgb = canvas.getRGB(rect.x + x, rect.y + y);
@@ -232,12 +290,12 @@ public class DrawingPanel extends JPanel {
             }
         }
 
-        // Aktualizujeme souřadnice výběru
+
         selectionStart = new Point(rect.x, rect.y);
         selectionEnd = new Point(rect.x + rect.width, rect.y + rect.height);
     }
 
-    // Metoda pro normalizaci obdélníku výběru (aby šířka a výška nebyly záporné)
+
     private Rectangle getNormalizedSelectionRect() {
         int x = Math.min(selectionStart.x, selectionEnd.x);
         int y = Math.min(selectionStart.y, selectionEnd.y);
@@ -247,22 +305,22 @@ public class DrawingPanel extends JPanel {
         return new Rectangle(x, y, width, height);
     }
 
-    // Nová metoda pro aplikování výběru na plátno
+
     private void applySelection() {
         if (selectedImage == null || selectionStart == null || selectionEnd == null) return;
 
         Rectangle rect = getNormalizedSelectionRect();
 
-        // Obnovíme původní plátno z zálohy
+
         Graphics g = canvas.getGraphics();
         g.drawImage(backupCanvas, 0, 0, null);
 
-        // Vymažeme oblast pod výběrem (černou barvou)
+
         g.setColor(Color.BLACK);
         g.fillRect(rect.x, rect.y, rect.width, rect.height);
         g.dispose();
 
-        // Nakreslíme vybraný obrázek na nové pozici
+
         for (int y = 0; y < selectedImage.getHeight(); y++) {
             for (int x = 0; x < selectedImage.getWidth(); x++) {
                 if (selectionStart.x + x >= 0 && selectionStart.x + x < canvas.getWidth() &&
@@ -274,17 +332,26 @@ public class DrawingPanel extends JPanel {
         }
     }
 
-    private void clearCanvas() {
-        Graphics g = canvas.getGraphics();
-        g.setColor(Color.BLACK);
-        g.fillRect(0, 0, canvas.getWidth(), canvas.getHeight());
-        g.dispose();
 
-        // Také vyčistíme záložní plátno
-        g = backupCanvas.getGraphics();
-        g.setColor(Color.BLACK);
-        g.fillRect(0, 0, backupCanvas.getWidth(), backupCanvas.getHeight());
-        g.dispose();
+
+    public void clearCanvas() {
+
+        int blackRGB = Color.BLACK.getRGB();
+        for (int y = 0; y < canvas.getHeight(); y++) {
+            for (int x = 0; x < canvas.getWidth(); x++) {
+                canvas.setRGB(x, y, blackRGB);
+            }
+        }
+
+
+        for (int y = 0; y < backupCanvas.getHeight(); y++) {
+            for (int x = 0; x < backupCanvas.getWidth(); x++) {
+                backupCanvas.setRGB(x, y, blackRGB);
+            }
+        }
+
+
+        clearTemp();
     }
 
     private void clearTemp() {
@@ -311,7 +378,7 @@ public class DrawingPanel extends JPanel {
         this.currentTool = tool;
         if (tool != ToolType.SELECTION) {
             if (selectedImage != null && selectionStart != null && selectionEnd != null) {
-                // Aplikujeme výběr na plátno před změnou nástroje
+
                 applySelection();
             }
             selectedImage = null;
@@ -334,11 +401,11 @@ public class DrawingPanel extends JPanel {
             selectionRasterizer.drawSelectionBox(preview, selectionStart, selectionEnd);
             selectionRasterizer.drawHandles(preview, rect);
 
-            // Vykreslíme vybraný obrázek
+
             if (selectedImage != null && !isDraggingSelection) {
                 g.drawImage(selectedImage, selectionStart.x, selectionStart.y, null);
             } else if (selectedImage != null) {
-                // Při tažení kreslíme jen ohraničení (originál zůstává na místě)
+
                 g.drawImage(selectedImage, selectionStart.x, selectionStart.y, null);
             }
         }
@@ -349,7 +416,7 @@ public class DrawingPanel extends JPanel {
                 lineRasterizer.drawLine(preview, pts.get(i - 1), pts.get(i), currentColor, currentThickness, currentStyle);
             }
             if (currentMouse != null) {
-                lineRasterizer.drawLine(preview, pts.get(pts.size() - 1), currentMouse, Color.GRAY, currentThickness, currentStyle);
+                lineRasterizer.drawLine(preview, pts.getLast(), currentMouse, Color.GRAY, currentThickness, currentStyle);
             }
         }
 

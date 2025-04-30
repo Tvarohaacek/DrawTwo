@@ -20,7 +20,7 @@ public class CircleRasterizer {
     private void drawStyledCircle(BufferedImage img, int x0, int y0, int radius, Color color, LineStyle style) {
         int x = radius;
         int y = 0;
-        int decisionOver2 = 1 - x; // Rozhodovací proměnná v algoritmu
+        int decisionOver2 = 1 - x;
 
         int[] pattern;
         switch (style) {

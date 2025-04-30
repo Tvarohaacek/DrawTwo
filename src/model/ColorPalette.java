@@ -2,9 +2,6 @@ package model;
 
 import java.awt.Color;
 
-/**
- * Definuje základní barevnou paletu.
- */
 public class ColorPalette {
     public static final Color[] BASIC_COLORS = {
             Color.WHITE,

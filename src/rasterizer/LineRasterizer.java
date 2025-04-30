@@ -72,15 +72,15 @@ public class LineRasterizer {
         double dx = current.x - start.x;
         double dy = current.y - start.y;
 
-        double angle = Math.atan2(dy, dx); // Úhel v radiánech
+        double angle = Math.atan2(dy, dx);
         double degree = Math.toDegrees(angle);
 
-        // Normalizace na [0, 360)
+
         if (degree < 0) {
             degree += 360;
         }
 
-        // Najdeme nejbližší násobek 45
+
         int snappedDegree = (int) (Math.round(degree / 45.0) * 45) % 360;
 
         double rad = Math.toRadians(snappedDegree);

@@ -6,13 +6,13 @@ import java.awt.image.BufferedImage;
 
 public class SelectionRasterizer {
 
-    // Metoda pro vykreslení výběru jako obdélníku
+
     public void drawSelectionBox(BufferedImage canvas, Point start, Point end) {
         Graphics2D g = canvas.createGraphics();
         g.setColor(Color.CYAN);
         g.setStroke(new BasicStroke(2));
 
-        // Získání normalizovaného obdélníku (zajistí, že šířka a výška nejsou záporné)
+
         int x = Math.min(start.x, end.x);
         int y = Math.min(start.y, end.y);
         int width = Math.abs(end.x - start.x);
@@ -22,9 +22,9 @@ public class SelectionRasterizer {
         g.dispose();
     }
 
-    // Metoda pro získání obdélníku výběru
+
     public Rectangle getSelectionRect(Point start, Point end) {
-        // Normalizujeme souřadnice, aby šířka a výška nebyly záporné
+
         int x = Math.min(start.x, end.x);
         int y = Math.min(start.y, end.y);
         int width = Math.abs(end.x - start.x);
@@ -33,59 +33,59 @@ public class SelectionRasterizer {
         return new Rectangle(x, y, width, height);
     }
 
-    // Metoda pro zjištění, zda je bod v některém z úchytů výběru
+
     public int getHandleIndex(Point point, Rectangle rect) {
         final int HANDLE_RADIUS = 10;
 
-        // Levý horní roh
-        if (isPointInHandleArea(point, rect.x, rect.y, HANDLE_RADIUS)) return 0;
-        // Pravý horní roh
-        if (isPointInHandleArea(point, rect.x + rect.width, rect.y, HANDLE_RADIUS)) return 1;
-        // Levý dolní roh
-        if (isPointInHandleArea(point, rect.x, rect.y + rect.height, HANDLE_RADIUS)) return 2;
-        // Pravý dolní roh
-        if (isPointInHandleArea(point, rect.x + rect.width, rect.y + rect.height, HANDLE_RADIUS)) return 3;
 
-        return -1; // Pokud bod není v žádném úchytu
+        if (isPointInHandleArea(point, rect.x, rect.y)) return 0;
+
+        if (isPointInHandleArea(point, rect.x + rect.width, rect.y)) return 1;
+
+        if (isPointInHandleArea(point, rect.x, rect.y + rect.height)) return 2;
+
+        if (isPointInHandleArea(point, rect.x + rect.width, rect.y + rect.height)) return 3;
+
+        return -1;
     }
 
-    // Metoda pro kontrolu, zda bod leží v okolí úchytu
-    private boolean isPointInHandleArea(Point point, int x, int y, int radius) {
-        return point.x >= x - radius && point.x <= x + radius && point.y >= y - radius && point.y <= y + radius;
+
+    private boolean isPointInHandleArea(Point point, int x, int y) {
+        return point.x >= x - 10 && point.x <= x + 10 && point.y >= y - 10 && point.y <= y + 10;
     }
 
-    // Metoda pro změnu velikosti výběru
+
     public Rectangle resizeSelection(Point start, Point end, int handleIndex, Point current) {
         int x = start.x;
         int y = start.y;
         int width = end.x - start.x;
         int height = end.y - start.y;
 
-        // Určujeme, který úchyt je zvolen a měníme velikost výběru podle něj
+
         switch (handleIndex) {
-            case 0: // Levý horní
+            case 0:
                 x = current.x;
                 y = current.y;
                 width = end.x - current.x;
                 height = end.y - current.y;
                 break;
-            case 1: // Pravý horní
+            case 1:
                 width = current.x - start.x;
                 y = current.y;
                 height = end.y - current.y;
                 break;
-            case 2: // Levý dolní
+            case 2:
                 x = current.x;
                 height = current.y - start.y;
                 width = end.x - current.x;
                 break;
-            case 3: // Pravý dolní
+            case 3:
                 width = current.x - start.x;
                 height = current.y - start.y;
                 break;
         }
 
-        // Normalizace obdélníku pro případ, že by šířka nebo výška byly záporné
+
         if (width < 0) {
             x += width;
             width = -width;
@@ -98,10 +98,9 @@ public class SelectionRasterizer {
         return new Rectangle(x, y, width, height);
     }
 
-    // Opravená metoda pro přesunutí výběru
 
 
-    // Metoda pro vykreslení úchytů pro změnu velikosti
+
     public void drawHandles(BufferedImage canvas, Rectangle rect) {
         final int HANDLE_RADIUS = 10;
         Graphics2D g = canvas.createGraphics();

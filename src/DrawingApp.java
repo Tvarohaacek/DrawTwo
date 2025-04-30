@@ -3,9 +3,7 @@ import java.awt.*;
 import ui.DrawingPanel;
 import ui.ToolPanel;
 
-/**
- * Hlavní třída pro spuštění aplikace.
- */
+
 public class DrawingApp {
     public static void main(String[] args) {
         SwingUtilities.invokeLater(() -> {
@@ -21,7 +19,7 @@ public class DrawingApp {
                     drawingPanel::setCurrentTool
                     );
 
-            frame.add(toolPanel, BorderLayout.NORTH);  // panel nástrojů nahoře
+            frame.add(toolPanel, BorderLayout.NORTH);
             frame.add(drawingPanel, BorderLayout.CENTER);
 
             frame.pack();

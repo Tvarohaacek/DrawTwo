@@ -2,7 +2,6 @@ package rasterizer;
 
 import model.Point;
 import model.LineStyle;
-
 import java.awt.*;
 import java.awt.image.BufferedImage;
 import java.util.ArrayList;
@@ -22,7 +21,7 @@ public class PolygonRasterizer {
 
     public boolean isCloseToFirst(Point p, int tolerance) {
         if (points.isEmpty()) return false;
-        Point first = points.get(0);
+        Point first = points.getFirst();
         int dx = p.x - first.x;
         int dy = p.y - first.y;
         return dx * dx + dy * dy <= tolerance * tolerance;
@@ -33,7 +32,7 @@ public class PolygonRasterizer {
             lineRasterizer.drawLine(img, points.get(i - 1), points.get(i), color, thickness, style);
         }
         if (close && points.size() > 2) {
-            lineRasterizer.drawLine(img, points.get(points.size() - 1), points.get(0), color, thickness, style);
+            lineRasterizer.drawLine(img, points.getLast(), points.getFirst(), color, thickness, style);
         }
     }
 

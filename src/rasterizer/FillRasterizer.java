@@ -4,7 +4,6 @@ import java.awt.*;
 import java.awt.image.BufferedImage;
 import java.util.LinkedList;
 import java.util.Queue;
-
 import model.Point;
 
 public class FillRasterizer {
