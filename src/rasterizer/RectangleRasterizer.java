@@ -14,6 +14,14 @@ public class RectangleRasterizer {
         this.lineRasterizer = lineRasterizer;
     }
 
+    /*
+    * Na základě znalosti úhlopříčky narýsuje obdélník
+    * 1. Určí všechny 4 body předáním souřadnic rohů
+    * 2. Zjistí, jestli se jendá o čtverec (pokud ano, osekne stranu)
+    * 3. Zajistí okraje canvasu
+    * 4. Pomocí line rasterizeru vykreslí čáry samostatně z jednotlivých bodů
+    * Při držení shiftu rýsuje čtverec, */
+
     public void drawRectangle(BufferedImage img, Point p1, Point p2, Color color, int thickness, LineStyle style, boolean squareMode) {
 
         int x1 = p1.x;

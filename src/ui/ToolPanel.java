@@ -2,13 +2,17 @@ package ui;
 
 import javax.swing.*;
 import java.awt.*;
-import java.awt.event.*;
 import model.ColorPalette;
 import model.LineStyle;
 import model.ToolType;
 
 import java.util.function.Consumer;
 
+/**
+ * Panel nástrojů pro UI,
+ * přidávají se jednotlivá tlačítka,
+ * využívá se GridBagLayout, který umisťuje
+ * části ui do mřížky*/
 public class ToolPanel extends JPanel {
     private Color selectedColor = Color.WHITE;
 
@@ -18,12 +22,12 @@ public class ToolPanel extends JPanel {
                      Consumer<ToolType> onToolChange) {
         setLayout(new GridBagLayout());
         setBackground(Color.DARK_GRAY);
-
+        //tady se rozvrhuje hlavní panel
         GridBagConstraints gbc = new GridBagConstraints();
         gbc.fill = GridBagConstraints.BOTH;
         gbc.insets = new Insets(2, 2, 2, 2);
 
-
+        //tady se rozvrhuje mřížka barev
         JPanel colorsPanel = new JPanel(new GridLayout(2, 4, 3, 3));
         colorsPanel.setBackground(Color.DARK_GRAY);
         colorsPanel.setBorder(BorderFactory.createTitledBorder("Barvy"));
@@ -47,10 +51,10 @@ public class ToolPanel extends JPanel {
         JPanel thicknessPanel = new JPanel(new BorderLayout());
         thicknessPanel.setBackground(Color.DARK_GRAY);
         thicknessPanel.setBorder(BorderFactory.createTitledBorder("Tloušťka"));
-
+        //slider na tloušťku
         JSlider thicknessSlider = new JSlider(1, 10, 1);
         thicknessSlider.setBackground(Color.DARK_GRAY);
-        thicknessSlider.setMajorTickSpacing(3);
+        thicknessSlider.setMajorTickSpacing(2);
         thicknessSlider.setPaintTicks(true);
         thicknessSlider.setPaintLabels(true);
         thicknessSlider.addChangeListener(e -> {
@@ -62,7 +66,7 @@ public class ToolPanel extends JPanel {
         JPanel stylePanel = new JPanel(new BorderLayout());
         stylePanel.setBackground(Color.DARK_GRAY);
         stylePanel.setBorder(BorderFactory.createTitledBorder("Styl čáry"));
-
+        //volba stylu čáry
         String[] styles = {"Plná", "Přerušovaná", "Tečkovaná"};
         JComboBox<String> styleCombo = new JComboBox<>(styles);
         styleCombo.addActionListener(e -> {
@@ -79,7 +83,7 @@ public class ToolPanel extends JPanel {
         JPanel toolPanel = new JPanel(new GridLayout(2, 4, 3, 3));
         toolPanel.setBackground(Color.DARK_GRAY);
         toolPanel.setBorder(BorderFactory.createTitledBorder("Nástroj"));
-
+        //tlačítka na jednotlivé nástroje
         JToggleButton lineTool = new JToggleButton("Čára");
         JToggleButton rectTool = new JToggleButton("Obdélník");
         JToggleButton circleTool = new JToggleButton("Kruh");
@@ -151,5 +155,8 @@ public class ToolPanel extends JPanel {
         gbc.weightx = 0.5;
         gbc.weighty = 1.0;
         add(toolPanel, gbc);
+
+        //rozvržení mřížky - generováno primárně AI
+        //funguje to podobně jako CSS
     }
 }

@@ -8,6 +8,27 @@ import java.awt.Color;
 
 public class LineRasterizer {
 
+    /*
+    * Mezi danými souřadnicemi vykreslí čáru se stylem
+    * a tloušťkou. Styl a tloušťka jsou proporcionální
+    * v závislosti na tloušťce čáry se mění proporce teček
+    * a čar.
+    *
+    * Čára se kreslí přes while loop - Bresenhamův algoritmus
+    * 1. Vykreslí se pixel v aktuální poloze
+    * 2. zkontroluje se, jestli se dosáhlo koncového bodu
+    * 3. Vypočítá se, kam se posunout v dalším kroku
+    * https://en.wikipedia.org/wiki/Bresenham%27s_line_algorithm
+    *
+    * Jednoduché vysvětlení:
+    *
+    * podle toho, jestli je čára více vodorovná nebo svislá
+    * se vypočítává, kterým směrem se posunout
+    * Vedlejším směrem se algoritmus vydá tehdy, kdy je odchylka
+    * v algoritmu dostatečně velká na to, aby se zohlednila jako
+    * směr přímky
+    * */
+
     public void drawLine(BufferedImage img, Point p1, Point p2, Color color, int thickness, LineStyle style) {
         int x0 = p1.x;
         int y0 = p1.y;
@@ -55,6 +76,9 @@ public class LineRasterizer {
         }
     }
 
+    //Bere velikost pixelu v ohledu na hranice canvasu
+
+
     private void drawThickPixel(BufferedImage img, int x, int y, int thickness, Color color) {
         int radius = thickness / 2;
         for (int dx = -radius; dx <= radius; dx++) {
@@ -67,6 +91,10 @@ public class LineRasterizer {
             }
         }
     }
+    /*Pomocí goniometrických funkcí (atan2) prorovnává
+    úhel mezi body, a pak zaokrouhlí body na stejnou Xovou
+    nebo Ypsilonovou souřadnici
+     */
 
     public Point snapTo45Degrees(Point start, Point current) {
         double dx = current.x - start.x;

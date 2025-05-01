@@ -8,6 +8,19 @@ import model.Point;
 
 public class FillRasterizer {
 
+    /*
+    * Používá Flood Fill algoritmus, podrobný popis lze nalézt zde
+    * https://en.wikipedia.org/wiki/Flood_fill
+    * Používám možnost s frontou - při použití fronty (nebo zásobníku)
+    * se předejde častému problému stack overflow
+    * Do fronty se řadí jednotlivé pixely, ty se zabarví
+    * z queue se odstraní a přidají se sousední
+    *
+    * Chytré je na tom vlastně to, že se pixely plní jen tehdy, když je fronta prázdná,
+    * (tj. když nemá jaký bod kontrolovat),
+    * tím nedochází k tomu přehlcení a pracuje se s minimem paměti*/
+
+
     public void floodFill(BufferedImage canvas, Point start, Color fillColor) {
         int width = canvas.getWidth();
         int height = canvas.getHeight();

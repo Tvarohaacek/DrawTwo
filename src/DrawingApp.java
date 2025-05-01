@@ -3,6 +3,9 @@ import java.awt.*;
 import ui.DrawingPanel;
 import ui.ToolPanel;
 
+/*Třída na spouštění okna aplkace
+* přidávají se tu i okna pro UI*/
+
 
 public class DrawingApp {
     public static void main(String[] args) {
@@ -11,7 +14,7 @@ public class DrawingApp {
             frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
             frame.setLayout(new BorderLayout());
 
-            DrawingPanel drawingPanel = new DrawingPanel(800, 600);
+            DrawingPanel drawingPanel = new DrawingPanel(1920, 640);
             ToolPanel toolPanel = new ToolPanel(
                     drawingPanel::setCurrentColor,
                     drawingPanel::setCurrentThickness,

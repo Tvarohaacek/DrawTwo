@@ -7,6 +7,13 @@ import java.awt.*;
 import java.awt.image.BufferedImage;
 
 public class CircleRasterizer {
+
+    /*
+    * Vykreslí kruh s barvou, tloušťkou a stylem
+    * Poloměr se vypočítává jako vzdálenost mezi dvěma zadanými body
+    * Střed - první kliknutí
+    * Bod okraje - místo, kam dragguju myší
+    * Pro efekt tloušťky vykreslí více soustředných kruhů, jen mají menší poloměr*/
     public void drawCircle(BufferedImage img, Point center, Point edge, Color color, int thickness, LineStyle style) {
         int dx = edge.x - center.x;
         int dy = edge.y - center.y;
@@ -17,6 +24,10 @@ public class CircleRasterizer {
         }
     }
 
+    /*Vykresluje kruh podle stylu, využívá logiku tzv patternů
+    *Solid (default) - jednoduchý pattern {1} - pro každý krok se vykreslí
+    *Dotted - Pattern {1,0,0,0} - vykreslí se jeden pixel, a 3 ne
+    *Dashed - stejně jako u dotted, jen s větší mírou vykreslení */
     private void drawStyledCircle(BufferedImage img, int x0, int y0, int radius, Color color, LineStyle style) {
         int x = radius;
         int y = 0;
@@ -24,7 +35,6 @@ public class CircleRasterizer {
 
         int[] pattern;
         switch (style) {
-            case SOLID -> pattern = new int[]{1};
             case DOTTED -> pattern = new int[]{1, 0, 0, 0};
             case DASHED -> pattern = new int[]{1, 1, 1, 1, 0, 0, 0, 0};
             default -> pattern = new int[]{1};
@@ -48,6 +58,9 @@ public class CircleRasterizer {
         }
     }
 
+    /*Vykresluje body kružnice po osminách tak, že kontroluje hranici canvasu
+    *Na body, které by vyšly mimo canvas bude podmínka false, tím pádem se ani nepokusí je kreslit
+     */
 
     private void plotCirclePoints(BufferedImage img, int cx, int cy, int x, int y, Color color) {
         int[][] points = {
